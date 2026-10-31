@@ -18,10 +18,17 @@ app.disable('x-powered-by');
 
 app.use(helmet());
 app.use(cors({
-  origin: (origin, cb) => (!origin || env.corsOrigins.includes(origin) ? cb(null, true) : cb(null, false)),
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (env.corsOrigins.includes('*') || env.corsOrigins.includes(origin)) return cb(null, true);
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return cb(null, true);
+    return cb(null, false);
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language', 'X-Company-Id', 'X-Device-Key'],
 }));
+app.options('*', cors());
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 if (!env.isTest) app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));

@@ -9,9 +9,16 @@ const service = require('./auth.service');
 
 const COOKIE = 'seeda_rt';
 // Refresh cookie: httpOnly (no JS access), SameSite=Strict + narrow path → not sent cross-site (CSRF-safe refresh)
-const cookieOpts = () => ({
-  httpOnly: true, secure: env.isProd, sameSite: 'strict', path: '/api/v1/auth', maxAge: env.REFRESH_TOKEN_TTL_DAYS * 86400000,
-});
+const cookieOpts = () => {
+  const isCrossSite = env.isProd || Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  return {
+    httpOnly: true,
+    secure: isCrossSite || env.isProd,
+    sameSite: isCrossSite ? 'none' : 'lax',
+    path: '/api/v1/auth',
+    maxAge: env.REFRESH_TOKEN_TTL_DAYS * 86400000,
+  };
+};
 
 const tooMany = (req, res) => res.status(429).json({ error: { code: 'TOO_MANY_REQUESTS', message: 'Too many requests' } });
 // keyed by IP + e-mail so one office behind a shared NAT address does not lock everyone out
@@ -39,7 +46,7 @@ router.post('/refresh', refreshLimiter, ah(async (req, res) => {
 
 router.post('/logout', ah(async (req, res) => {
   await service.logout(req.cookies?.[COOKIE]);
-  res.clearCookie(COOKIE, { path: '/api/v1/auth' });
+  res.clearCookie(COOKIE, cookieOpts());
   res.status(204).end();
 }));
 
@@ -49,7 +56,7 @@ router.post('/change-password', authenticate,
   validate({ body: z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(1).max(200) }) }),
   ah(async (req, res) => {
     await service.changePassword(req.ctx, req.body);
-    res.clearCookie(COOKIE, { path: '/api/v1/auth' });
+    res.clearCookie(COOKIE, cookieOpts());
     res.status(204).end();
   }));
 

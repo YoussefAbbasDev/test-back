@@ -7,8 +7,13 @@ const env = require('../config/env');
 const prisma = require('../database/prisma');
 const { badRequest, notFound } = require('../utils/errors');
 
-const ROOT = path.resolve(process.cwd(), env.UPLOAD_DIR);
-fs.mkdirSync(ROOT, { recursive: true });
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+const ROOT = isServerless ? path.join('/tmp', 'uploads') : path.resolve(process.cwd(), env.UPLOAD_DIR);
+try {
+  fs.mkdirSync(ROOT, { recursive: true });
+} catch {
+  // Read-only filesystem or permissions handled gracefully
+}
 
 const ALLOWED = new Map([
   ['application/pdf', '.pdf'], ['image/jpeg', '.jpg'], ['image/png', '.png'], ['image/webp', '.webp'],
